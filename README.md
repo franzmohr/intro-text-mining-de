@@ -16,6 +16,10 @@ Die ersten sechs Skripte verwenden klassische, nachvollziehbare Methoden. Ein gr
 
 Die Skripte 05, 06 und 07 bearbeiten dieselbe Aufgabe - das ORF-Ressort aus einer Schlagzeile vorhersagen - mit derselben Aufteilung in Trainings- und Testdaten. Ihre Ergebnisse sind daher direkt vergleichbar.
 
+## Folien
+
+Die Präsentation zum Seminar liegt als [`text-mining.odp`](text-mining.odp) im OpenDocument-Format vor und lässt sich mit LibreOffice Impress oder PowerPoint öffnen. Sie führt in das Text Mining ein und stellt jedes Skript mit einer Folie zu den Methoden und einem Code-Beispiel samt Ergebnissen vor. Die Zahlen und Grafiken stammen aus einem Lauf der Skripte und ändern sich nicht mit, wenn das Archiv wächst.
+
 ## Ausführen
 
 Starte Jupyter mit der gemeinsamen Umgebung aus diesem Ordner:
@@ -55,4 +59,5 @@ Wird die Silver-Tabelle in orf-teletext neu aufgebaut, verwenden alle Skripte au
 ## Aufbau
 
 - [`textmining.py`](textmining.py) enthält, was alle Skripte gemeinsam nutzen: das Laden des Korpus mit den Entscheidungen darüber, was ein Dokument ist (Schritt für Schritt erklärt in Skript 01), Metadaten und Farben der Feeds, einen zwischengespeicherten spaCy-Parse und die Aufteilung für die Klassifikation.
+- [`text-mining.odp`](text-mining.odp) enthält die Folien zum Seminar (siehe oben).
 - `_cache/` enthält spaCy-Parses und gespeicherte LLM-Ergebnisse. Das sind abgeleitete Daten, die gefahrlos gelöscht werden können. Wird eine LLM-Ergebnisdatei gelöscht, kostet der nächste Lauf mit `RUN_LLM = True` erneut Geld.
