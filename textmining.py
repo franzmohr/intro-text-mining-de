@@ -332,10 +332,10 @@ def load_corpus(dedupe: bool = True) -> pd.DataFrame:
 # Die Klassifikationsaufgabe der Skripte 05-07
 # ---------------------------------------------------------------------------
 
-# Die fünf größten Ressorts von Der Standard werden zu Klassen; alle übrigen
-# (Inland, Etat, Wissenschaft, Kultur, Meinung, Lifestyle, ...) werden zu
+# Die sechs größten Ressorts von Der Standard werden zu Klassen; alle übrigen
+# (Etat, Wissenschaft, Kultur, Meinung, Gesundheit, Lifestyle, ...) werden zu
 # "Sonstiges" zusammengefasst.
-SUBJECTS = ["International", "Panorama", "Web", "Wirtschaft", "Sport"]
+SUBJECTS = ["International", "Inland", "Panorama", "Web", "Wirtschaft", "Sport"]
 OTHER = "Sonstiges"
 
 

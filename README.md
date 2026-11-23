@@ -14,7 +14,7 @@ Die ersten sechs Skripte verwenden klassische, nachvollziehbare Methoden. Ein gr
 | 06 | [Embeddings](06-text-mining-embeddings.ipynb) | Wortvektoren, Sentence Transformer, semantische und sprachübergreifende Suche, Embeddings als Merkmale | spaCy, sentence-transformers, UMAP |
 | 07 | [Ein LLM als Klassifikator](07-text-mining-llm-classification.ipynb) | Zero-Shot- und Few-Shot-Prompting, strukturierte Ausgabe, Kosten und Validität | anthropic |
 
-Die Skripte 05, 06 und 07 bearbeiten dieselbe Aufgabe - das Ressort eines Standard-Artikels aus seiner Schlagzeile vorhersagen (die fünf größten Ressorts und *Sonstiges*) - mit derselben zeitlichen Aufteilung in Trainings- und Testdaten. Ihre Ergebnisse sind daher direkt vergleichbar.
+Die Skripte 05, 06 und 07 bearbeiten dieselbe Aufgabe - das Ressort eines Standard-Artikels aus seiner Schlagzeile vorhersagen (die sechs größten Ressorts und *Sonstiges*) - mit derselben zeitlichen Aufteilung in Trainings- und Testdaten. Ihre Ergebnisse sind daher direkt vergleichbar.
 
 ## Daten
 
