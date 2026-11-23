@@ -40,7 +40,7 @@ Was als Dokument zählt, entscheidet `load_corpus()` in mehreren Schritten (geme
 
 ## Folien
 
-Die Präsentation zum Seminar liegt als [`text-mining.odp`](text-mining.odp) im OpenDocument-Format vor und lässt sich mit LibreOffice Impress oder PowerPoint öffnen. Sie führt in das Text Mining ein und stellt jedes Skript mit einer Folie zu den Methoden und einem Code-Beispiel samt Ergebnissen vor. **Die Zahlen, Beispiele und Grafiken auf den Folien stammen noch aus dem früheren Korpus (Nachrichten-Feeds von ORF, Der Standard, tagesschau und Handelsblatt)** und passen nicht zu den aktuellen Ausgaben der Skripte.
+Die Präsentation zum Seminar liegt als [`text-mining.odp`](text-mining.odp) im OpenDocument-Format vor und lässt sich mit LibreOffice Impress oder PowerPoint öffnen. Sie führt in das Text Mining ein und stellt jedes Skript mit einer Folie zu den Methoden und einem Code-Beispiel samt Ergebnissen vor. Die Zahlen, Beispiele und Grafiken auf den Folien stammen aus einem Lauf der Skripte auf dem hier beschriebenen Korpus; sie ändern sich nicht mit, wenn die Skripte verändert werden.
 
 ## Ausführen
 
