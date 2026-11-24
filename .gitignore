@@ -2,3 +2,5 @@ _cache/
 __pycache__/
 .ipynb_checkpoints/
 data/
+api-keys.env
+.~lock.*#

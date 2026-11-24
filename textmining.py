@@ -9,12 +9,13 @@ Tageszeitungen aus demselben Jahr (Juni 2015 bis Mai 2016),
   nur für nicht-kommerzielle Forschung und Lehre).
 
 Die Entscheidungen darüber, was als Dokument zählt, stehen einmal hier - statt in
-sieben Notebooks wiederholt zu werden und dabei unbemerkt auseinanderzulaufen.
+neun Notebooks wiederholt zu werden und dabei unbemerkt auseinanderzulaufen.
 Skript 01 erklärt jede dieser Entscheidungen Schritt für Schritt; dieses Modul ist
-die Kurzfassung.
+die Kurzfassung. Dazu kommen die vollen Artikeltexte (`load_bodies()`) und die von
+der Redaktion annotierten Leserkommentare von Der Standard (`load_posts()`).
 
 Die Rohdaten werden beim ersten Aufruf von `load_corpus()` heruntergeladen und in
-zwei kleine Parquet-Dateien umgewandelt (`prepare_data()`, etwa 1 GB Download,
+drei kleine Parquet-Dateien umgewandelt (`prepare_data()`, etwa 1 GB Download,
 einige Minuten). Standardmäßig landen sie im Ordner `data/` neben diesem Modul;
 die Umgebungsvariable TEXTMINING_DATA legt einen anderen Ordner fest.
 """
@@ -29,6 +30,7 @@ import sqlite3
 import tarfile
 import urllib.request
 import warnings
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -57,6 +59,7 @@ HERE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("TEXTMINING_DATA", HERE / "data"))
 STANDARD_FILE = DATA / "derstandard.parquet"
 SZ_FILE = DATA / "sueddeutsche.parquet"
+POSTS_FILE = DATA / "derstandard_posts.parquet"
 CACHE = HERE / "_cache"
 
 # Quellen der Rohdaten
@@ -121,12 +124,18 @@ def _download(url: str, target: Path) -> None:
     tmp = target.with_suffix(target.suffix + ".part")
     request = urllib.request.Request(url, headers={"User-Agent": "textmining-course"})
     with urllib.request.urlopen(request) as response, open(tmp, "wb") as out:
+        expected = response.headers.get("Content-Length")
         shutil.copyfileobj(response, out, length=1 << 20)
-    tmp.rename(target)
+    # Bricht die Verbindung vorzeitig ab, meldet urllib keinen Fehler; eine
+    # abgeschnittene Datei würde erst beim Entpacken auffallen. Daher die Größe prüfen.
+    if expected is not None and tmp.stat().st_size != int(expected):
+        tmp.unlink()
+        raise OSError(f"Download von {url} unvollständig, bitte erneut ausführen")
+    tmp.replace(target)
 
 
-def _prepare_standard(raw: Path) -> None:
-    """One Million Posts Corpus -> eine Zeile je Der-Standard-Artikel (alle 12.087)."""
+def _ompc_database(raw: Path) -> Path:
+    """Lade das One Million Posts Corpus herunter und entpacke seine SQLite-Datenbank."""
     archive = raw / "million_post_corpus.tar.bz2"
     _download(OMPC_URL, archive)
     db = raw / "million_post_corpus" / "corpus.sqlite3"
@@ -134,7 +143,45 @@ def _prepare_standard(raw: Path) -> None:
         with tarfile.open(archive, "r:bz2") as tar:
             member = tar.getmember("million_post_corpus/corpus.sqlite3")
             tar.extractall(raw, members=[member], filter="data")
-    with sqlite3.connect(db) as con:
+    return db
+
+
+def _prepare_posts(raw: Path) -> None:
+    """One Million Posts Corpus -> eine Zeile je annotiertem Leserkommentar.
+
+    Die Redaktion von Der Standard hat rund 11.000 Kommentare nach neun Kategorien
+    annotiert (Argumente, Stimmung, Off-Topic, persönliche Geschichten, ...). Jede
+    Kategorie wird eine Spalte mit 1, 0 oder fehlend (nicht annotiert).
+    """
+    with closing(sqlite3.connect(_ompc_database(raw))) as con:
+        posts = pd.read_sql(
+            """SELECT p.ID_Post, p.ID_Article, p.CreatedAt, p.Headline, p.Body,
+                      p.PositiveVotes, p.NegativeVotes, a.Path, a.Title AS ArticleTitle
+               FROM Posts p JOIN Articles a USING (ID_Article)
+               WHERE p.ID_Post IN (SELECT ID_Post FROM Annotations_consolidated)""",
+            con,
+        )
+        labels = pd.read_sql("SELECT ID_Post, Category, Value FROM Annotations_consolidated", con)
+    labels = labels.pivot(index="ID_Post", columns="Category", values="Value").astype("Int8")
+    posts = posts.set_index("ID_Post").join(labels).reset_index()
+    pd.DataFrame(
+        {
+            "post_id": posts["ID_Post"],
+            "article_id": posts["ID_Article"],
+            "created": pd.to_datetime(posts["CreatedAt"]),
+            "headline": posts["Headline"].fillna("").str.strip(),
+            "body": posts["Body"].fillna("").str.strip(),
+            "upvotes": posts["PositiveVotes"],
+            "downvotes": posts["NegativeVotes"],
+            "article_title": posts["ArticleTitle"].map(clean_html),
+            "article_section": posts["Path"].map(standard_section),
+        }
+    ).join(posts[list(labels.columns)]).to_parquet(POSTS_FILE, index=False)
+
+
+def _prepare_standard(raw: Path) -> None:
+    """One Million Posts Corpus -> eine Zeile je Der-Standard-Artikel (alle 12.087)."""
+    with closing(sqlite3.connect(_ompc_database(raw))) as con:
         articles = pd.read_sql("SELECT ID_Article, Path, publishingDate, Title, Body FROM Articles", con)
     pd.DataFrame(
         {
@@ -187,6 +234,8 @@ def prepare_data(keep_raw: bool = False) -> None:
     raw.mkdir(parents=True, exist_ok=True)
     if not STANDARD_FILE.exists():
         _prepare_standard(raw)
+    if not POSTS_FILE.exists():
+        _prepare_posts(raw)
     if not SZ_FILE.exists():
         _prepare_sz(raw)
     if not keep_raw:
@@ -195,9 +244,41 @@ def prepare_data(keep_raw: bool = False) -> None:
 
 def load_raw() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Die beiden Quellen, so wie sie geliefert werden (vor allen Entscheidungen aus Skript 01)."""
-    if not (STANDARD_FILE.exists() and SZ_FILE.exists()):
+    if not (STANDARD_FILE.exists() and SZ_FILE.exists() and POSTS_FILE.exists()):
         prepare_data()
     return pd.read_parquet(STANDARD_FILE), pd.read_parquet(SZ_FILE)
+
+
+def load_posts() -> pd.DataFrame:
+    """Die annotierten Leserkommentare von Der Standard (One Million Posts Corpus).
+
+    Eine Zeile je Kommentar; `text` ist Überschrift plus Text des Kommentars. Die
+    Spalten `ArgumentsUsed`, `SentimentNegative`, ... enthalten die Annotation der
+    Redaktion (1/0) oder <NA>, wenn der Kommentar für diese Kategorie nicht annotiert wurde.
+    """
+    if not POSTS_FILE.exists():
+        prepare_data()
+    posts = pd.read_parquet(POSTS_FILE)
+    posts["text"] = posts["headline"].where(posts["body"] == "", posts["headline"] + " " + posts["body"]).str.strip()
+    return posts[posts["text"] != ""].reset_index(drop=True)
+
+
+def load_bodies() -> pd.Series:
+    """Der volle Artikeltext beider Zeitungen, als Series mit `doc_key` als Index.
+
+    `load_corpus()` enthält nur Schlagzeile und Teaser. Für das Training eigener
+    Wortvektoren (Skript 06), für das Argument Mining in Meinungsartikeln (Skript 08)
+    und für die Zusammenfassung (Skript 09) brauchen wir die ganzen Artikel. Bei
+    Der Standard wird der Vorspann (<h2>) weggelassen, weil er schon der Teaser ist.
+    """
+    standard, sz = load_raw()
+    body_std = standard["body_html"].str.replace(_H2_RE, " ", regex=True).map(clean_html)
+    # Einige Werbeseiten der SZ (Newsletter) haben keine Artikelnummer; sie sind keine Artikel.
+    sz = sz[sz["article_id"].notna()]
+    return pd.concat([
+        pd.Series(body_std.to_numpy(), index="std-" + standard["article_id"].astype(str)),
+        pd.Series(sz["body"].fillna("").str.strip().to_numpy(), index="sz-" + sz["article_id"].astype(str)),
+    ]).rename("body")
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +407,33 @@ def load_corpus(dedupe: bool = True) -> pd.DataFrame:
         corpus = corpus.sort_values(["month", "published"]).drop_duplicates(["outlet", "title"], keep="first")
 
     return corpus.sort_values(["outlet", "month", "published"]).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# API-Schlüssel für die Skripte mit LLMs (07 und 09)
+# ---------------------------------------------------------------------------
+
+API_KEYS_FILE = HERE / "api-keys.env"
+
+
+def load_api_keys(path: Path = API_KEYS_FILE) -> dict[str, bool]:
+    """Lies die API-Schlüssel aus `api-keys.env` in die Umgebungsvariablen.
+
+    Die Datei enthält Zeilen der Form `NAME=wert`; Kommentarzeilen beginnen mit `#`.
+    Ein Eintrag in der Datei hat Vorrang vor einer gleichnamigen Umgebungsvariablen:
+    Wird ein (zeitlich befristeter) Schlüssel in der Datei ausgetauscht, genügt es,
+    die Funktion erneut aufzurufen - ein Neustart des Kernels ist nicht nötig. Leere
+    Einträge werden übersprungen; dann gilt eine vorhandene Umgebungsvariable.
+    Zurückgegeben wird, welche Schlüssel danach vorhanden sind - die Schlüssel selbst
+    werden nie ausgegeben.
+    """
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            name, sep, value = line.partition("=")
+            name, value = name.strip(), value.strip().strip('"').strip("'")
+            if sep and value and not name.startswith("#"):
+                os.environ[name] = value
+    return {name: bool(os.environ.get(name)) for name in ["ANTHROPIC_API_KEY", "MISTRAL_API_KEY"]}
 
 
 # ---------------------------------------------------------------------------
